@@ -7,6 +7,7 @@ import requests
 from io import StringIO
 import logging
 from typing import Tuple, Optional, Dict, Any
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -20,44 +21,34 @@ JOSAA_DATA = None
 
 def load_data() -> pd.DataFrame:
     """
-    Load JoSAA counseling data from remote source
+    Load JoSAA counseling data from local CSV
     
     Returns:
         pd.DataFrame: Loaded and preprocessed dataframe
     """
     global JOSAA_DATA
     try:
-        # Multiple fallback URLs
-        urls = [
-            "https://raw.githubusercontent.com/JARAWA/JOSAA180325/refs/heads/main/josaa2024_cutoff.csv",
-            "https://raw.githubusercontent.com/username/repo/main/josaa2024_cutoff.csv"  # Backup URL
-        ]
+        # Determine the path to the CSV file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        csv_path = os.path.join(project_root, 'josaa2024_cutoff.csv')
         
-        for url in urls:
-            try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status()
-                
-                df = pd.read_csv(StringIO(response.text))
-                
-                # Data preprocessing
-                df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
-                df["Closing Rank"] = pd.to_numeric(df["Closing Rank"], errors="coerce").fillna(9999999)
-                df["Round"] = df["Round"].astype(str)
-                
-                # Normalize columns
-                df['Category'] = df['Category'].str.lower()
-                df['Academic Program Name'] = df['Academic Program Name'].str.lower()
-                df['College Type'] = df['College Type'].str.upper()
-                
-                JOSAA_DATA = df
-                logger.info(f"Data loaded successfully. Total rows: {len(df)}")
-                return df
-            
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Failed to load from {url}: {e}")
+        # Read the CSV file
+        df = pd.read_csv(csv_path)
         
-        raise ValueError("Could not load data from any source")
+        # Data preprocessing
+        df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
+        df["Closing Rank"] = pd.to_numeric(df["Closing Rank"], errors="coerce").fillna(9999999)
+        df["Round"] = df["Round"].astype(str)
+        
+        # Normalize columns
+        df['Category'] = df['Category'].str.lower()
+        df['Academic Program Name'] = df['Academic Program Name'].str.lower()
+        df['College Type'] = df['College Type'].str.upper()
+        
+        JOSAA_DATA = df
+        logger.info(f"Data loaded successfully. Total rows: {len(df)}")
+        return df
     
     except Exception as e:
         logger.error(f"Critical error in data loading: {e}")
@@ -88,19 +79,95 @@ def get_unique_branches() -> list:
         logger.error(f"Error getting branches: {e}")
         return ["All"]
 
+def predict_preferences(
+    jee_rank: int, 
+    category: str, 
+    college_type: str, 
+    preferred_branch: str, 
+    round_no: int, 
+    min_probability: float
+) -> Tuple[pd.DataFrame, None, Optional[go.Figure]]:
+    """
+    Predict college preferences based on input parameters
+    """
+    try:
+        global JOSAA_DATA
+        if JOSAA_DATA is None:
+            load_data()
+
+        # Filter DataFrame based on input parameters
+        df = JOSAA_DATA.copy()
+        
+        # Apply filters
+        df['Category'] = df['Category'].str.lower()
+        df['Academic Program Name'] = df['Academic Program Name'].str.lower()
+        df['College Type'] = df['College Type'].str.upper()
+        
+        if category.lower() != 'all':
+            df = df[df['Category'] == category.lower()]
+        
+        if college_type.upper() != 'ALL':
+            df = df[df['College Type'] == college_type.upper()]
+        
+        if preferred_branch.lower() != 'all':
+            df = df[df['Academic Program Name'] == preferred_branch.lower()]
+        
+        df = df[df['Round'] == str(round_no)]
+
+        # Probability calculation
+        df['Admission Probability (%)'] = df.apply(
+            lambda row: hybrid_probability_calculation(
+                jee_rank, 
+                row['Opening Rank'], 
+                row['Closing Rank']
+            ), 
+            axis=1
+        )
+
+        # Filter by minimum probability
+        df = df[df['Admission Probability (%)'] >= min_probability]
+        
+        # Sort and prepare result
+        df = df.sort_values('Admission Probability (%)', ascending=False)
+        df['Preference'] = range(1, len(df) + 1)
+
+        # Select and rename columns
+        result = df[[
+            'Preference', 
+            'Institute', 
+            'College Type', 
+            'Location', 
+            'Academic Program Name', 
+            'Opening Rank', 
+            'Closing Rank', 
+            'Admission Probability (%)'
+        ]].rename(columns={
+            'Academic Program Name': 'Branch'
+        })
+
+        # Create probability distribution plot
+        fig = px.histogram(
+            result, 
+            x='Admission Probability (%)', 
+            title='Admission Probability Distribution',
+            labels={'Admission Probability (%)': 'Probability', 'count': 'Number of Colleges'}
+        )
+
+        return result, None, fig
+
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        return pd.DataFrame({"Error": [str(e)]}), None, None
+
 def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank: float) -> float:
     """
     Advanced probability calculation method
-    
-    Args:
-        rank (int): JEE Rank
-        opening_rank (float): Opening rank of college
-        closing_rank (float): Closing rank of college
-    
-    Returns:
-        float: Calculated admission probability
     """
     try:
+        # Prevent division by zero
+        if opening_rank == closing_rank:
+            return 0.0 if rank > opening_rank else 100.0
+
         # Logistic probability calculation
         M = (opening_rank + closing_rank) / 2
         S = max((closing_rank - opening_rank) / 10, 1)
@@ -135,5 +202,3 @@ def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank:
     except Exception as e:
         logger.error(f"Probability calculation error: {e}")
         return 0.0
-
-# Add other utility functions like predict_preferences, get_college_details as needed
