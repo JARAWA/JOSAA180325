@@ -6,7 +6,7 @@ from io import StringIO
 
 def load_data():
     try:
-        url = "https://raw.githubusercontent.com/JARAWA/JOSAA_preference/refs/heads/main/josaa2024_cutoff.csv"
+        url = "https://raw.githubusercontent.com/JARAWA/JOSAA180325/refs/heads/main/josaa2024_cutoff.csv"
         response = requests.get(url)
         response.raise_for_status()
         
