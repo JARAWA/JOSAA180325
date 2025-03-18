@@ -3,8 +3,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objs as go
 import math
-import requests
-from io import StringIO
 import logging
 from typing import Tuple, Optional, Dict, Any
 import os
