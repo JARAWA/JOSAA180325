@@ -3,11 +3,5 @@ services:
     name: josaa-predictor
     env: python3
     buildCommand: |
-      python3 -m venv venv
-      . venv/bin/activate
       pip install -r requirements.txt
-      mkdir -p static/css static/js templates
-      touch static/css/main.css
-      touch static/js/main.js
-      touch templates/index.html
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
