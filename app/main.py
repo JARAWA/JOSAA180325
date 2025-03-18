@@ -1,8 +1,13 @@
-import sys
 import os
+import sys
+
+# Get the absolute path to the project root
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(PROJECT_ROOT, 'static')
+TEMPLATES_DIR = os.path.join(PROJECT_ROOT, 'templates')
 
 # Ensure the correct path is added
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PROJECT_ROOT)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +16,8 @@ from fastapi.staticfiles import StaticFiles
 import logging
 
 # Local imports
-from models import PredictionInput
-from utils import (
+from app.models import PredictionInput, CollegeDetailInput
+from app.utils import (
     load_data, 
     get_unique_branches, 
     predict_preferences, 
@@ -25,6 +30,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Verify directories exist
+for directory in [STATIC_DIR, TEMPLATES_DIR]:
+    if not os.path.exists(directory):
+        logger.warning(f"Directory does not exist: {directory}")
+        os.makedirs(directory, exist_ok=True)
 
 # FastAPI Application
 app = FastAPI(
@@ -43,18 +54,19 @@ app.add_middleware(
 )
 
 # Static file serving
-app.mount("/static", StaticFiles(directory="../static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# API Endpoints
+# Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Perform startup tasks like data loading"""
+    """Perform startup tasks"""
     try:
         load_data()
         logger.info("Data loaded successfully on startup")
     except Exception as e:
         logger.error(f"Failed to load data on startup: {e}")
 
+# API Endpoints
 @app.get("/api/branches")
 def get_branches():
     """Retrieve unique academic branches"""
@@ -96,11 +108,21 @@ def predict(input: PredictionInput):
         logger.error(f"Prediction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/college-details")
+def college_details(input: CollegeDetailInput):
+    """Retrieve detailed information about a specific college"""
+    try:
+        details = get_college_details(input.institute, input.branch)
+        return details
+    except Exception as e:
+        logger.error(f"Error fetching college details: {e}")
+        raise HTTPException(status_code=404, detail="College details not found")
+
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     """Serve the main index.html"""
     try:
-        with open("../templates/index.html", "r") as f:
+        with open(os.path.join(TEMPLATES_DIR, "index.html"), "r") as f:
             return f.read()
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Application Frontend Not Found</h1>", status_code=404)
