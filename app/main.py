@@ -1,5 +1,11 @@
 import os
 import sys
+import logging
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
 # Get the absolute path to the project root
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -8,12 +14,6 @@ TEMPLATES_DIR = os.path.join(PROJECT_ROOT, 'templates')
 
 # Ensure the correct path is added
 sys.path.append(PROJECT_ROOT)
-
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-import logging
 
 # Local imports
 from app.models import PredictionInput, CollegeDetailInput
@@ -31,12 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Verify directories exist
-for directory in [STATIC_DIR, TEMPLATES_DIR]:
-    if not os.path.exists(directory):
-        logger.warning(f"Directory does not exist: {directory}")
-        os.makedirs(directory, exist_ok=True)
-
 # FastAPI Application
 app = FastAPI(
     title="JOSAA College Predictor",
@@ -47,7 +41,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Consider restricting this in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -113,6 +107,8 @@ def college_details(input: CollegeDetailInput):
     """Retrieve detailed information about a specific college"""
     try:
         details = get_college_details(input.institute, input.branch)
+        if "error" in details:
+            raise HTTPException(status_code=404, detail=details["error"])
         return details
     except Exception as e:
         logger.error(f"Error fetching college details: {e}")
@@ -129,7 +125,6 @@ def read_index():
 
 # Uvicorn Server Runner
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
