@@ -202,3 +202,45 @@ def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank:
     except Exception as e:
         logger.error(f"Probability calculation error: {e}")
         return 0.0
+
+def get_college_details(institute: str, branch: str) -> Dict[str, Any]:
+    """
+    Retrieve detailed information about a specific college
+    
+    Args:
+        institute (str): Name of the institute
+        branch (str): Academic branch
+    
+    Returns:
+        Dict containing college details
+    """
+    global JOSAA_DATA
+    if JOSAA_DATA is None:
+        load_data()
+    
+    try:
+        # Normalize input
+        institute = institute.lower()
+        branch = branch.lower()
+        
+        # Filter and aggregate college details
+        college_data = JOSAA_DATA[
+            (JOSAA_DATA['Institute'].str.lower() == institute) & 
+            (JOSAA_DATA['Academic Program Name'].str.lower() == branch)
+        ]
+        
+        if college_data.empty:
+            return {"error": "College not found"}
+        
+        return {
+            "institute": institute.title(),
+            "branch": branch.title(),
+            "total_seats": int(college_data['Total Seats'].sum()) if 'Total Seats' in college_data.columns else 0,
+            "min_rank": int(college_data['Opening Rank'].min()),
+            "max_rank": int(college_data['Closing Rank'].max()),
+            "rounds": college_data['Round'].unique().tolist()
+        }
+    
+    except Exception as e:
+        logging.error(f"Error fetching college details: {e}")
+        return {"error": str(e)}
