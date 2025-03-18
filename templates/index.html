@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JOSAA College Preference Generator</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <header>
+        <h1><i class="fas fa-university"></i> JOSAA College Preference Generator</h1>
+        <p>Generate your personalized college preference list based on JEE rank</p>
+        
+        <!-- User Info / Auth Buttons -->
+        <div class="auth-section">
+            <!-- Example user check for demonstration. Adjust according to your backend implementation. -->
+            <div class="user-info">
+                <span>Welcome, User</span>
+                <button onclick="handleLogout()" class="btn secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Search Form -->
+        <section class="search-section">
+            <form id="prediction-form" class="search-form">
+                <div class="form-group">
+                    <label for="college_type">College Type</label>
+                    <select id="college_type" name="college_type" required>
+                        <option value="ALL">ALL</option>
+                        <option value="IIT">IIT</option>
+                        <option value="NIT">NIT</option>
+                        <option value="IIIT">IIIT</option>
+                        <option value="GFTI">GFTI</option>
+                    </select>
+                </div> 
+                
+                <div class="form-group">
+                    <label for="jee_rank">Your JEE Rank</label>
+                    <input type="number" id="jee_rank" name="jee_rank" required min="1" placeholder="Enter your rank">
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select id="category" name="category" required>
+                        <option value="All">All</option>
+                        <option value="OPEN">OPEN</option>
+                        <option value="OBC-NCL">OBC-NCL</option>
+                        <option value="OBC-NCL (PwD)">OBC-NCL (PwD)</option>
+                        <option value="EWS">EWS</option>
+                        <option value="EWS (PwD)">EWS (PwD)</option>
+                        <option value="SC">SC</option>
+                        <option value="SC (PwD)">SC (PwD)</option>
+                        <option value="ST">ST</option>
+                        <option value="ST (PwD)">ST (PwD)</option>
+                    </select>
+                </div>
+              
+                <div class="form-group">
+                    <label for="preferred_branch">Preferred Branch</label>
+                    <select id="preferred_branch" name="preferred_branch" required>
+                        <!-- Dynamic branch options will be populated here -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="round_no">Round</label>
+                    <select id="round_no" name="round_no" required>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="min_prob">Minimum Probability (%)</label>
+                    <input type="range" id="min_prob" name="min_prob" min="0" max="100" value="30" step="5">
+                    <span id="min_prob_value">30</span>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn primary">
+                        <i class="fas fa-magic"></i> Generate Preferences
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" style="display: none;">
+            <div class="results-header">
+                <h2>College Preferences</h2>
+                <button onclick="exportToCSV()" class="btn secondary">
+                    <i class="fas fa-download"></i> Export to CSV
+                </button>
+            </div>
+
+            <div class="results-table-container">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Preference</th>
+                            <th>Institute</th>
+                            <th>College Type</th>
+                            <th>Location</th>
+                            <th>Branch</th>
+                            <th>Opening Rank</th>
+                            <th>Closing Rank</th>
+                            <th>Probability (%)</th>
+                            <th>Chances</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Results will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="probability-plot" class="plot-container"></div>
+        </section>
+
+        <!-- Help Section -->
+        <section class="help-section">
+            <h2><i class="fas fa-question-circle"></i> How to Use</h2>
+            <ol>
+                <li>Choose college type (IIT/NIT/IIIT/GFTI)</li>
+                <li>Enter your JEE rank (Advanced for IITs, Main for others)</li>
+                <li>Select your category</li>
+                <li>Select preferred branch (optional)</li>
+                <li>Choose counselling round</li>
+                <li>Set minimum probability threshold</li>
+                <li>Click "Generate Preferences" to get your list</li>
+            </ol>
+            <div class="disclaimer">
+                <p><strong>Note:</strong> This tool uses historical data and should be used for reference only. 
+                Always verify information from official sources.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 JOSAA College Preference Generator. All rights reserved.</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
