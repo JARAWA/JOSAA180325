@@ -10,15 +10,113 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        header p {
+            margin: 0;
+            font-size: 1.2em;
+        }
+        .container {
+            padding: 20px;
+        }
+        .search-section, .results-section, .help-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-actions {
+            text-align: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn.primary {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .btn.secondary {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .results-table th, .results-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .plot-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+        .auth-section {
+            text-align: right;
+            padding: 10px 20px;
+        }
+        .auth-section .user-info {
+            display: inline-block;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <header>
-        <h1><i class="fas fa-university"></i> JOSAA College Preference Generator</h1>
-        <p>Generate your personalized college preference list based on JEE rank</p>
-        
-        <!-- User Info / Auth Buttons -->
         <div class="auth-section">
-            <!-- Example user check for demonstration. Adjust according to your backend implementation. -->
             <div class="user-info">
                 <span>Welcome, User</span>
                 <button onclick="handleLogout()" class="btn secondary">
@@ -26,6 +124,8 @@
                 </button>
             </div>
         </div>
+        <h1><i class="fas fa-university"></i> JOSAA College Preference Generator</h1>
+        <p>Generate your personalized college preference list based on JEE rank</p>
     </header>
 
     <main class="container">
