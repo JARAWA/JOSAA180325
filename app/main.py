@@ -5,7 +5,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Union
 import logging
+import sys
+import os
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils import (
     load_data, 
     get_unique_branches, 
