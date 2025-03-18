@@ -1,14 +1,13 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
 
 class PredictionInput(BaseModel):
-    jee_rank: int
-    category: str
-    college_type: str
-    preferred_branch: str
-    round_no: str
-    min_probability: float
+    jee_rank: int = Field(..., gt=0, le=1000000, description="JEE Rank")
+    category: str = Field(default="GENERAL", description="Reservation Category")
+    college_type: str = Field(default="ALL", description="Type of College")
+    preferred_branch: str = Field(default="ALL", description="Preferred Branch")
+    round_no: int = Field(default=1, ge=1, le=6, description="Counseling Round")
+    min_probability: float = Field(default=40.0, ge=0, le=100, description="Minimum Probability Threshold")
 
-class PredictionOutput(BaseModel):
-    preferences: List[dict]
-    plot_data: Optional[dict]
+class CollegeDetailInput(BaseModel):
+    institute: str
+    branch: str
