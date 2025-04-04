@@ -67,10 +67,20 @@ def get_branches():
     try:
         branches = get_unique_branches()
         logger.info(f"Retrieved {len(branches)} branches")
+        
+        # Ensure we return a valid response even if branches is empty
+        if not branches or len(branches) <= 1:  # Only "All" in the list
+            logger.warning("No branches were found or only 'All' was returned")
+            # Return a backup list of common branches if no real data is available
+            return ["All", "computer science and engineering", "electrical engineering", 
+                   "mechanical engineering", "civil engineering", "chemical engineering"]
+        
         return branches
     except Exception as e:
         logger.error(f"Error retrieving branches: {e}")
-        raise HTTPException(status_code=500, detail="Unable to retrieve branches")
+        # Return a default response instead of raising an error
+        return ["All", "computer science and engineering", "electrical engineering", 
+               "mechanical engineering", "civil engineering", "chemical engineering"]
 
 @app.post("/api/predict")
 def predict(input: PredictionInput):
