@@ -31,8 +31,25 @@ def load_data() -> pd.DataFrame:
         project_root = os.path.dirname(current_dir)
         csv_path = os.path.join(project_root, 'josaa2024_cutoff.csv')
         
+        logger.info(f"Attempting to load CSV from: {csv_path}")
+        
+        # Check if file exists
+        if not os.path.exists(csv_path):
+            logger.error(f"CSV file not found at: {csv_path}")
+            # Look for alternative CSV files in the directory
+            data_dir = os.path.join(project_root, 'data')
+            if os.path.exists(data_dir):
+                csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
+                if csv_files:
+                    alternative_path = os.path.join(data_dir, csv_files[0])
+                    logger.info(f"Using alternative CSV file: {alternative_path}")
+                    csv_path = alternative_path
+        
         # Read the CSV file
         df = pd.read_csv(csv_path)
+        
+        # Log the column names to help diagnose issues
+        logger.info(f"CSV columns: {df.columns.tolist()}")
         
         # Data preprocessing
         df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
@@ -48,9 +65,20 @@ def load_data() -> pd.DataFrame:
         logger.info(f"Data loaded successfully. Total rows: {len(df)}")
         return df
     
+    except FileNotFoundError as e:
+        logger.error(f"CSV file not found: {e}")
+        # Return an empty DataFrame with expected columns to avoid crashing
+        return pd.DataFrame(columns=[
+            'Institute', 'Academic Program Name', 'Category', 
+            'Opening Rank', 'Closing Rank', 'Round', 'College Type'
+        ])
     except Exception as e:
         logger.error(f"Critical error in data loading: {e}")
-        raise
+        # Return an empty DataFrame with expected columns
+        return pd.DataFrame(columns=[
+            'Institute', 'Academic Program Name', 'Category', 
+            'Opening Rank', 'Closing Rank', 'Round', 'College Type'
+        ])
 
 def get_unique_branches() -> list:
     """
@@ -60,19 +88,33 @@ def get_unique_branches() -> list:
         list: Sorted list of unique branches
     """
     global JOSAA_DATA
-    if JOSAA_DATA is None:
-        load_data()
-    
     try:
-        unique_branches = sorted(
-            JOSAA_DATA['Academic Program Name']
-            .dropna()
-            .str.strip()
-            .str.lower()
-            .unique()
-            .tolist()
-        )
-        return ["All"] + unique_branches
+        if JOSAA_DATA is None:
+            JOSAA_DATA = load_data()
+        
+        # Log the shape and first few rows to verify data is loaded
+        logger.info(f"Data shape: {JOSAA_DATA.shape}")
+        logger.info(f"First few rows: {JOSAA_DATA.head(2).to_dict(orient='records')}")
+        
+        # Check if 'Academic Program Name' column exists
+        if 'Academic Program Name' not in JOSAA_DATA.columns:
+            logger.error("'Academic Program Name' column not found in data")
+            return ["All"]  # Return at least "All" option
+        
+        # Get unique branches with robust error handling
+        try:
+            unique_branches = sorted(
+                JOSAA_DATA['Academic Program Name']
+                .dropna()
+                .apply(lambda x: x.strip().lower() if isinstance(x, str) else x)
+                .unique()
+                .tolist()
+            )
+            logger.info(f"Found {len(unique_branches)} unique branches")
+            return ["All"] + unique_branches
+        except Exception as e:
+            logger.error(f"Error processing branches: {e}")
+            return ["All"]
     except Exception as e:
         logger.error(f"Error getting branches: {e}")
         return ["All"]
@@ -91,7 +133,7 @@ def predict_preferences(
     try:
         global JOSAA_DATA
         if JOSAA_DATA is None:
-            load_data()
+            JOSAA_DATA = load_data()
 
         # Filter DataFrame based on input parameters
         df = JOSAA_DATA.copy()
@@ -214,7 +256,7 @@ def get_college_details(institute: str, branch: str) -> Dict[str, Any]:
     """
     global JOSAA_DATA
     if JOSAA_DATA is None:
-        load_data()
+        JOSAA_DATA = load_data()
     
     try:
         # Normalize input
