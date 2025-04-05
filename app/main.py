@@ -1,23 +1,13 @@
-import os
-import sys
-import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import uvicorn
-
-# Get the absolute path to the project root
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATIC_DIR = os.path.join(PROJECT_ROOT, 'static')
-TEMPLATES_DIR = os.path.join(PROJECT_ROOT, 'templates')
-
-# Ensure the correct path is added
-sys.path.append(PROJECT_ROOT)
-
-# Local imports
-from app.models import PredictionInput, CollegeDetailInput
-from app.utils import (
+import os
+import logging
+from .models import PredictionInput, CollegeDetailInput
+from .utils import (
     load_data, 
     get_unique_branches, 
     predict_preferences, 
@@ -41,52 +31,72 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Consider restricting this in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
-# Static file serving
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Static files and templates
+current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app.mount("/static", StaticFiles(directory=os.path.join(current_dir, "static")), name="static")
+templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
 # Startup event
 @app.on_event("startup")
 async def startup_event():
-    """Perform startup tasks"""
+    """Initialize data on startup"""
     try:
         load_data()
         logger.info("Data loaded successfully on startup")
     except Exception as e:
         logger.error(f"Failed to load data on startup: {e}")
 
-# API Endpoints
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    """Serve the main index page"""
+    try:
+        with open(os.path.join(current_dir, "templates", "index.html")) as f:
+            return HTMLResponse(content=f.read())
+    except Exception as e:
+        logger.error(f"Error serving index page: {e}")
+        return HTMLResponse(content="<h1>Error loading page</h1>")
+
 @app.get("/api/branches")
-def get_branches():
-    """Retrieve unique academic branches"""
+async def get_branches():
+    """
+    Retrieve unique academic branches
+    
+    Returns:
+        List of available branches
+    """
     try:
         branches = get_unique_branches()
         logger.info(f"Retrieved {len(branches)} branches")
         
-        # Ensure we return a valid response even if branches is empty
-        if not branches or len(branches) <= 1:  # Only "All" in the list
-            logger.warning("No branches were found or only 'All' was returned")
-            # Return a backup list of common branches if no real data is available
+        if not branches or len(branches) <= 1:
+            logger.warning("No branches found or only 'All' was returned")
             return ["All", "computer science and engineering", "electrical engineering", 
-                   "mechanical engineering", "civil engineering", "chemical engineering"]
+                   "mechanical engineering", "civil engineering"]
         
         return branches
     except Exception as e:
-        logger.error(f"Error retrieving branches: {e}")
-        # Return a default response instead of raising an error
-        return ["All", "computer science and engineering", "electrical engineering", 
-               "mechanical engineering", "civil engineering", "chemical engineering"]
+        logger.error(f"Error in get_branches endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/predict")
-def predict(input: PredictionInput):
-    """Predict college preferences based on input parameters"""
+async def predict(input: PredictionInput):
+    """
+    Predict college preferences based on input parameters
+    
+    Args:
+        input (PredictionInput): Input parameters for prediction
+    
+    Returns:
+        Dict containing predictions and visualization data
+    """
     try:
-        result, _, plot = predict_preferences(
+        result, plot = predict_preferences(
             input.jee_rank,
             input.category,
             input.college_type,
@@ -95,49 +105,50 @@ def predict(input: PredictionInput):
             input.min_probability
         )
         
-        if "Error" in result.columns:
+        if result.empty:
             return JSONResponse(
-                status_code=400, 
-                content={"message": "No predictions available"}
+                status_code=404,
+                content={"message": "No predictions available for given criteria"}
             )
         
-        preferences = result.to_dict(orient='records')
-        plot_data = plot.to_dict() if plot else None
-
         return {
-            "preferences": preferences, 
-            "plot_data": plot_data
+            "predictions": result.to_dict(orient='records'),
+            "plot_data": plot.to_dict() if plot else None
         }
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
+        logger.error(f"Error in predict endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/college-details")
-def college_details(input: CollegeDetailInput):
-    """Retrieve detailed information about a specific college"""
+async def college_details(input: CollegeDetailInput):
+    """
+    Retrieve detailed information about a specific college
+    
+    Args:
+        input (CollegeDetailInput): College and branch information
+    
+    Returns:
+        Dict containing college details
+    """
     try:
         details = get_college_details(input.institute, input.branch)
         if "error" in details:
             raise HTTPException(status_code=404, detail=details["error"])
         return details
     except Exception as e:
-        logger.error(f"Error fetching college details: {e}")
-        raise HTTPException(status_code=404, detail="College details not found")
+        logger.error(f"Error in college_details endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/", response_class=HTMLResponse)
-def read_index():
-    """Serve the main index.html"""
-    try:
-        with open(os.path.join(TEMPLATES_DIR, "index.html"), "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return HTMLResponse(content="<h1>Application Frontend Not Found</h1>", status_code=404)
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
 
-# Uvicorn Server Runner
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app", 
-        host="0.0.0.0", 
-        port=8000, 
+        "app.main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
         reload=True
     )
