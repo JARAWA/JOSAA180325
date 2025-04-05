@@ -19,37 +19,25 @@ JOSAA_DATA = None
 
 def load_data() -> pd.DataFrame:
     """
-    Load JoSAA counseling data from local CSV
+    Load JoSAA counseling data from CSV
     
     Returns:
         pd.DataFrame: Loaded and preprocessed dataframe
     """
     global JOSAA_DATA
     try:
-        # Determine the path to the CSV file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(current_dir)
-        csv_path = os.path.join(project_root, 'josaa2024_cutoff.csv')
+        # Get path to CSV in root directory
+        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        csv_path = os.path.join(current_dir, 'josaa2024_cutoff.csv')
         
         logger.info(f"Attempting to load CSV from: {csv_path}")
         
-        # Check if file exists
         if not os.path.exists(csv_path):
             logger.error(f"CSV file not found at: {csv_path}")
-            # Look for alternative CSV files in the directory
-            data_dir = os.path.join(project_root, 'data')
-            if os.path.exists(data_dir):
-                csv_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
-                if csv_files:
-                    alternative_path = os.path.join(data_dir, csv_files[0])
-                    logger.info(f"Using alternative CSV file: {alternative_path}")
-                    csv_path = alternative_path
+            raise FileNotFoundError(f"CSV file not found at: {csv_path}")
         
         # Read the CSV file
         df = pd.read_csv(csv_path)
-        
-        # Log the column names to help diagnose issues
-        logger.info(f"CSV columns: {df.columns.tolist()}")
         
         # Data preprocessing
         df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
@@ -60,21 +48,14 @@ def load_data() -> pd.DataFrame:
         df['Category'] = df['Category'].str.lower()
         df['Academic Program Name'] = df['Academic Program Name'].str.lower()
         df['College Type'] = df['College Type'].str.upper()
+        df['Institute'] = df['Institute'].str.strip()
         
         JOSAA_DATA = df
         logger.info(f"Data loaded successfully. Total rows: {len(df)}")
         return df
     
-    except FileNotFoundError as e:
-        logger.error(f"CSV file not found: {e}")
-        # Return an empty DataFrame with expected columns to avoid crashing
-        return pd.DataFrame(columns=[
-            'Institute', 'Academic Program Name', 'Category', 
-            'Opening Rank', 'Closing Rank', 'Round', 'College Type'
-        ])
     except Exception as e:
-        logger.error(f"Critical error in data loading: {e}")
-        # Return an empty DataFrame with expected columns
+        logger.error(f"Error in load_data: {e}")
         return pd.DataFrame(columns=[
             'Institute', 'Academic Program Name', 'Category', 
             'Opening Rank', 'Closing Rank', 'Round', 'College Type'
@@ -92,32 +73,74 @@ def get_unique_branches() -> list:
         if JOSAA_DATA is None:
             JOSAA_DATA = load_data()
         
-        # Log the shape and first few rows to verify data is loaded
-        logger.info(f"Data shape: {JOSAA_DATA.shape}")
-        logger.info(f"First few rows: {JOSAA_DATA.head(2).to_dict(orient='records')}")
-        
-        # Check if 'Academic Program Name' column exists
         if 'Academic Program Name' not in JOSAA_DATA.columns:
-            logger.error("'Academic Program Name' column not found in data")
-            return ["All"]  # Return at least "All" option
-        
-        # Get unique branches with robust error handling
-        try:
-            unique_branches = sorted(
-                JOSAA_DATA['Academic Program Name']
-                .dropna()
-                .apply(lambda x: x.strip().lower() if isinstance(x, str) else x)
-                .unique()
-                .tolist()
-            )
-            logger.info(f"Found {len(unique_branches)} unique branches")
-            return ["All"] + unique_branches
-        except Exception as e:
-            logger.error(f"Error processing branches: {e}")
+            logger.error("'Academic Program Name' column not found")
             return ["All"]
+        
+        # Get unique branches and clean them
+        branches = JOSAA_DATA['Academic Program Name'].dropna()
+        branches = branches.apply(lambda x: str(x).strip().lower())
+        unique_branches = sorted(list(set(branches)))
+        
+        # Add "All" option at the beginning
+        unique_branches = ["All"] + unique_branches
+        
+        logger.info(f"Retrieved {len(unique_branches)} unique branches")
+        return unique_branches
+        
     except Exception as e:
-        logger.error(f"Error getting branches: {e}")
-        return ["All"]
+        logger.error(f"Error in get_unique_branches: {e}")
+        return ["All", "computer science and engineering", "electrical engineering", 
+                "mechanical engineering", "civil engineering"]
+
+def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank: float) -> float:
+    """
+    Calculate admission probability using hybrid method
+    
+    Args:
+        rank (int): Student's rank
+        opening_rank (float): Opening rank for the program
+        closing_rank (float): Closing rank for the program
+    
+    Returns:
+        float: Calculated probability percentage
+    """
+    try:
+        # Prevent division by zero
+        if opening_rank == closing_rank:
+            return 0.0 if rank > opening_rank else 100.0
+
+        # Logistic probability calculation
+        M = (opening_rank + closing_rank) / 2
+        S = max((closing_rank - opening_rank) / 10, 1)
+        logistic_prob = 1 / (1 + math.exp((rank - M) / S)) * 100
+
+        # Piecewise probability calculation
+        if rank <= opening_rank:
+            improvement = (opening_rank - rank) / opening_rank
+            piece_wise_prob = 99.0 if improvement >= 0.5 else 96 + (improvement * 6)
+        elif rank > closing_rank:
+            piece_wise_prob = 0.0
+        else:
+            range_width = closing_rank - opening_rank
+            position = (rank - opening_rank) / range_width
+            
+            if position <= 0.2:
+                piece_wise_prob = 94 - (position * 70)
+            elif position <= 0.5:
+                piece_wise_prob = 80 - ((position - 0.2) / 0.3 * 20)
+            elif position <= 0.8:
+                piece_wise_prob = 60 - ((position - 0.5) / 0.3 * 20)
+            else:
+                piece_wise_prob = 40 - ((position - 0.8) / 0.2 * 20)
+
+        # Final probability calculation
+        final_prob = (logistic_prob * 0.7 + piece_wise_prob * 0.3)
+        return round(max(0, min(final_prob, 100)), 2)
+    
+    except Exception as e:
+        logger.error(f"Error in probability calculation: {e}")
+        return 0.0
 
 def predict_preferences(
     jee_rank: int, 
@@ -126,9 +149,20 @@ def predict_preferences(
     preferred_branch: str, 
     round_no: int, 
     min_probability: float
-) -> Tuple[pd.DataFrame, None, Optional[go.Figure]]:
+) -> Tuple[pd.DataFrame, Optional[go.Figure]]:
     """
     Predict college preferences based on input parameters
+    
+    Args:
+        jee_rank (int): Student's JEE rank
+        category (str): Category (e.g., OPEN, SC, ST)
+        college_type (str): College type (e.g., IIT, NIT)
+        preferred_branch (str): Preferred branch
+        round_no (int): Counseling round number
+        min_probability (float): Minimum probability threshold
+    
+    Returns:
+        Tuple containing DataFrame of predictions and optional plot
     """
     try:
         global JOSAA_DATA
@@ -137,11 +171,6 @@ def predict_preferences(
 
         # Filter DataFrame based on input parameters
         df = JOSAA_DATA.copy()
-        
-        # Apply filters
-        df['Category'] = df['Category'].str.lower()
-        df['Academic Program Name'] = df['Academic Program Name'].str.lower()
-        df['College Type'] = df['College Type'].str.upper()
         
         if category.lower() != 'all':
             df = df[df['Category'] == category.lower()]
@@ -154,7 +183,7 @@ def predict_preferences(
         
         df = df[df['Round'] == str(round_no)]
 
-        # Probability calculation
+        # Calculate probabilities
         df['Admission Probability (%)'] = df.apply(
             lambda row: hybrid_probability_calculation(
                 jee_rank, 
@@ -175,9 +204,9 @@ def predict_preferences(
         result = df[[
             'Preference', 
             'Institute', 
-            'College Type', 
-            'Location', 
             'Academic Program Name', 
+            'Category',
+            'College Type',
             'Opening Rank', 
             'Closing Rank', 
             'Admission Probability (%)'
@@ -190,58 +219,20 @@ def predict_preferences(
             result, 
             x='Admission Probability (%)', 
             title='Admission Probability Distribution',
-            labels={'Admission Probability (%)': 'Probability', 'count': 'Number of Colleges'}
+            labels={'Admission Probability (%)': 'Probability', 'count': 'Number of Colleges'},
+            nbins=20
+        )
+        fig.update_layout(
+            showlegend=False,
+            xaxis_title="Probability (%)",
+            yaxis_title="Number of Colleges"
         )
 
-        return result, None, fig
+        return result, fig
 
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        return pd.DataFrame({"Error": [str(e)]}), None, None
-
-def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank: float) -> float:
-    """
-    Advanced probability calculation method
-    """
-    try:
-        # Prevent division by zero
-        if opening_rank == closing_rank:
-            return 0.0 if rank > opening_rank else 100.0
-
-        # Logistic probability calculation
-        M = (opening_rank + closing_rank) / 2
-        S = max((closing_rank - opening_rank) / 10, 1)
-        
-        logistic_prob = 1 / (1 + math.exp((rank - M) / S)) * 100
-
-        # Piecewise probability calculation
-        if rank < opening_rank:
-            improvement = (opening_rank - rank) / opening_rank
-            piece_wise_prob = 99.0 if improvement >= 0.5 else 96 + (improvement * 6)
-        elif rank == opening_rank:
-            piece_wise_prob = 95.0
-        elif rank < closing_rank:
-            range_width = closing_rank - opening_rank
-            position = (rank - opening_rank) / range_width
-            
-            if position <= 0.2:
-                piece_wise_prob = 94 - (position * 70)
-            elif position <= 0.5:
-                piece_wise_prob = 80 - ((position - 0.2) / 0.3 * 20)
-            elif position <= 0.8:
-                piece_wise_prob = 60 - ((position - 0.5) / 0.3 * 20)
-            else:
-                piece_wise_prob = 40 - ((position - 0.8) / 0.2 * 20)
-        else:
-            piece_wise_prob = 0.0
-
-        # Final probability calculation
-        final_prob = (logistic_prob * 0.7 + piece_wise_prob * 0.3)
-        return round(max(0, min(final_prob, 100)), 2)
-    
-    except Exception as e:
-        logger.error(f"Probability calculation error: {e}")
-        return 0.0
+        logger.error(f"Error in predict_preferences: {e}")
+        return pd.DataFrame(), None
 
 def get_college_details(institute: str, branch: str) -> Dict[str, Any]:
     """
@@ -255,15 +246,15 @@ def get_college_details(institute: str, branch: str) -> Dict[str, Any]:
         Dict containing college details
     """
     global JOSAA_DATA
-    if JOSAA_DATA is None:
-        JOSAA_DATA = load_data()
-    
     try:
+        if JOSAA_DATA is None:
+            JOSAA_DATA = load_data()
+        
         # Normalize input
         institute = institute.lower()
         branch = branch.lower()
         
-        # Filter and aggregate college details
+        # Filter college data
         college_data = JOSAA_DATA[
             (JOSAA_DATA['Institute'].str.lower() == institute) & 
             (JOSAA_DATA['Academic Program Name'].str.lower() == branch)
@@ -272,15 +263,24 @@ def get_college_details(institute: str, branch: str) -> Dict[str, Any]:
         if college_data.empty:
             return {"error": "College not found"}
         
-        return {
+        # Aggregate details
+        details = {
             "institute": institute.title(),
             "branch": branch.title(),
-            "total_seats": int(college_data['Total Seats'].sum()) if 'Total Seats' in college_data.columns else 0,
+            "total_seats": int(college_data['Total Seats'].iloc[0]) if 'Total Seats' in college_data.columns else 0,
             "min_rank": int(college_data['Opening Rank'].min()),
             "max_rank": int(college_data['Closing Rank'].max()),
-            "rounds": college_data['Round'].unique().tolist()
+            "rounds": sorted(college_data['Round'].unique().tolist()),
+            "categories": sorted(college_data['Category'].unique().tolist()),
+            "trend": {
+                "opening_ranks": college_data['Opening Rank'].tolist(),
+                "closing_ranks": college_data['Closing Rank'].tolist(),
+                "rounds": college_data['Round'].tolist()
+            }
         }
+        
+        return details
     
     except Exception as e:
-        logging.error(f"Error fetching college details: {e}")
+        logger.error(f"Error in get_college_details: {e}")
         return {"error": str(e)}
