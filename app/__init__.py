@@ -1,2 +1,2 @@
-# app/__init__.py
-# This can be an empty file
+# This can be empty or contain version information
+__version__ = "1.2.0"
