@@ -62,55 +62,32 @@ def load_data() -> pd.DataFrame:
         
 def get_unique_branches() -> list:
     """
-    Retrieve unique academic branches with enhanced error checking
-    
-    Returns:
-        list: Sorted list of unique branches
+    Retrieve unique academic branches
     """
     global JOSAA_DATA
     try:
-        if JOSAA_DATA is None:
-            logger.warning("JOSAA_DATA is None, attempting to load data...")
+        if JOSAA_DATA is None or JOSAA_DATA.empty:
+            logger.warning("JOSAA_DATA is None or empty, attempting to load data...")
             JOSAA_DATA = load_data()
-            
-        # Debug information about the DataFrame
-        logger.info(f"DataFrame shape: {JOSAA_DATA.shape}")
-        logger.info(f"DataFrame columns: {JOSAA_DATA.columns.tolist()}")
         
         if 'Academic Program Name' not in JOSAA_DATA.columns:
-            logger.error("'Academic Program Name' column not found in DataFrame")
-            return {
-                "status": "error",
-                "message": "Academic Program Name column missing",
-                "branches": ["All"]
-            }
+            logger.error("'Academic Program Name' column not found")
+            return ["All"]
         
         # Get unique branches and clean them
-        branches = JOSAA_DATA['Academic Program Name'].dropna()
-        logger.info(f"Number of non-null branches before cleaning: {len(branches)}")
-        
-        branches = branches.apply(lambda x: str(x).strip().lower())
-        unique_branches = sorted(list(set(branches)))
-        
-        logger.info(f"Number of unique branches found: {len(unique_branches)}")
-        logger.debug(f"Unique branches: {unique_branches[:5]}...")  # Show first 5 branches
+        branches = JOSAA_DATA['Academic Program Name'].dropna().unique()
+        branches = [str(branch).strip().lower() for branch in branches]
+        unique_branches = sorted(set(branches))
         
         # Add "All" option at the beginning
         unique_branches = ["All"] + unique_branches
         
-        return {
-            "status": "success",
-            "message": f"Successfully retrieved {len(unique_branches)} branches",
-            "branches": unique_branches
-        }
+        logger.info(f"Retrieved {len(unique_branches)} unique branches")
+        return unique_branches
         
     except Exception as e:
-        logger.error(f"Error in get_unique_branches: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Error retrieving branches: {str(e)}",
-            "branches": ["All"]
-        }
+        logger.error(f"Error in get_unique_branches: {e}")
+        return ["All"]
 
 def hybrid_probability_calculation(rank: int, opening_rank: float, closing_rank: float) -> float:
     """
