@@ -262,52 +262,7 @@
                 </div>
             </form>
         </section>
-
-        async function loadBranches() {
-    try {
-        const response = await fetch('/api/branches');
-        const data = await response.json();
-        
-        // Display diagnostic information
-        const diagnosticDiv = document.getElementById('branch-diagnostic');
-        if (diagnosticDiv) {
-            diagnosticDiv.innerHTML = `
-                <div class="diagnostic-info" style="background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 5px;">
-                    <h4>Branch Loading Diagnostic</h4>
-                    <p>Status: ${data.status}</p>
-                    <p>Message: ${data.message}</p>
-                    <p>Branches Count: ${data.branches?.length || 0}</p>
-                    <p>Sample Branches: ${data.diagnostic?.sample_branches?.join(', ') || 'None'}</p>
-                    ${data.diagnostic?.error_type ? `<p>Error Type: ${data.diagnostic.error_type}</p>` : ''}
-                    ${data.diagnostic?.error_details ? `<p>Error Details: ${data.diagnostic.error_details}</p>` : ''}
-                </div>
-            `;
-        }
-
-        // Populate the dropdown
-        const branchSelect = document.getElementById('preferred-branch');
-        if (branchSelect && data.branches) {
-            branchSelect.innerHTML = data.branches
-                .map(branch => `<option value="${branch}">${branch}</option>`)
-                .join('');
-        } else {
-            console.error('Branch select element not found or no branches data');
-        }
-    } catch (error) {
-        console.error('Error loading branches:', error);
-        const diagnosticDiv = document.getElementById('branch-diagnostic');
-        if (diagnosticDiv) {
-            diagnosticDiv.innerHTML = `
-                <div class="diagnostic-info" style="background: #ffe6e6; padding: 10px; margin: 10px 0; border-radius: 5px;">
-                    <h4>Branch Loading Error</h4>
-                    <p>Failed to load branches: ${error.message}</p>
-                </div>
-            `;
-        }
-    }
-}
-
-        
+       
         <!-- Results Section (Similar structure, with refined styling) -->
         <section class="results-section" style="display:none;">
             <h2>Your College Preferences</h2>
