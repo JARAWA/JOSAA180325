@@ -62,27 +62,57 @@ async def read_root():
         logger.error(f"Error serving index page: {e}")
         return HTMLResponse(content="<h1>Error loading page</h1>")
 
-@app.get("/api/branches")
-async def get_branches():
+def get_unique_branches() -> list:
     """
-    Retrieve unique academic branches
+    Retrieve unique academic branches with enhanced error checking
     
     Returns:
-        List of available branches
+        list: Sorted list of unique branches
     """
+    global JOSAA_DATA
     try:
-        branches = get_unique_branches()
-        logger.info(f"Retrieved {len(branches)} branches")
+        if JOSAA_DATA is None:
+            logger.warning("JOSAA_DATA is None, attempting to load data...")
+            JOSAA_DATA = load_data()
+            
+        # Debug information about the DataFrame
+        logger.info(f"DataFrame shape: {JOSAA_DATA.shape}")
+        logger.info(f"DataFrame columns: {JOSAA_DATA.columns.tolist()}")
         
-        if not branches or len(branches) <= 1:
-            logger.warning("No branches found or only 'All' was returned")
-            return ["All", "computer science and engineering", "electrical engineering", 
-                   "mechanical engineering", "civil engineering"]
+        if 'Academic Program Name' not in JOSAA_DATA.columns:
+            logger.error("'Academic Program Name' column not found in DataFrame")
+            return {
+                "status": "error",
+                "message": "Academic Program Name column missing",
+                "branches": ["All"]
+            }
         
-        return branches
+        # Get unique branches and clean them
+        branches = JOSAA_DATA['Academic Program Name'].dropna()
+        logger.info(f"Number of non-null branches before cleaning: {len(branches)}")
+        
+        branches = branches.apply(lambda x: str(x).strip().lower())
+        unique_branches = sorted(list(set(branches)))
+        
+        logger.info(f"Number of unique branches found: {len(unique_branches)}")
+        logger.debug(f"Unique branches: {unique_branches[:5]}...")  # Show first 5 branches
+        
+        # Add "All" option at the beginning
+        unique_branches = ["All"] + unique_branches
+        
+        return {
+            "status": "success",
+            "message": f"Successfully retrieved {len(unique_branches)} branches",
+            "branches": unique_branches
+        }
+        
     except Exception as e:
-        logger.error(f"Error in get_branches endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in get_unique_branches: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Error retrieving branches: {str(e)}",
+            "branches": ["All"]
+        }
 
 @app.post("/api/predict")
 async def predict(input: PredictionInput):
