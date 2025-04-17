@@ -11,7 +11,8 @@ from .utils import (
     load_data, 
     get_unique_branches, 
     predict_preferences, 
-    get_college_details
+    get_college_details,
+    JOSAA_DATA
 )
 
 # Configure logging
@@ -62,68 +63,51 @@ async def read_root():
         logger.error(f"Error serving index page: {e}")
         return HTMLResponse(content="<h1>Error loading page</h1>")
 
-def get_unique_branches() -> list:
+@app.get("/api/branches")
+async def get_branches():
     """
-    Retrieve unique academic branches with enhanced error checking
-    
-    Returns:
-        list: Sorted list of unique branches
+    Retrieve unique academic branches
     """
-    global JOSAA_DATA
     try:
-        if JOSAA_DATA is None:
-            logger.warning("JOSAA_DATA is None, attempting to load data...")
-            JOSAA_DATA = load_data()
-            
-        # Debug information about the DataFrame
-        logger.info(f"DataFrame shape: {JOSAA_DATA.shape}")
-        logger.info(f"DataFrame columns: {JOSAA_DATA.columns.tolist()}")
+        branches = get_unique_branches()
+        logger.info(f"API request for branches. Found {len(branches)} branches")
         
-        if 'Academic Program Name' not in JOSAA_DATA.columns:
-            logger.error("'Academic Program Name' column not found in DataFrame")
-            return {
-                "status": "error",
-                "message": "Academic Program Name column missing",
-                "branches": ["All"]
+        if not branches or len(branches) <= 1:
+            logger.warning("No branches found or only 'All' was returned")
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "warning",
+                    "message": "Using fallback branch list",
+                    "branches": ["All", "computer science and engineering", 
+                               "electrical engineering", "mechanical engineering", 
+                               "civil engineering"]
+                }
+            )
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "success",
+                "message": f"Successfully retrieved {len(branches)} branches",
+                "branches": branches
             }
-        
-        # Get unique branches and clean them
-        branches = JOSAA_DATA['Academic Program Name'].dropna()
-        logger.info(f"Number of non-null branches before cleaning: {len(branches)}")
-        
-        branches = branches.apply(lambda x: str(x).strip().lower())
-        unique_branches = sorted(list(set(branches)))
-        
-        logger.info(f"Number of unique branches found: {len(unique_branches)}")
-        logger.debug(f"Unique branches: {unique_branches[:5]}...")  # Show first 5 branches
-        
-        # Add "All" option at the beginning
-        unique_branches = ["All"] + unique_branches
-        
-        return {
-            "status": "success",
-            "message": f"Successfully retrieved {len(unique_branches)} branches",
-            "branches": unique_branches
-        }
-        
+        )
     except Exception as e:
-        logger.error(f"Error in get_unique_branches: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Error retrieving branches: {str(e)}",
-            "branches": ["All"]
-        }
+        logger.error(f"Error in get_branches endpoint: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": str(e),
+                "branches": []
+            }
+        )
 
 @app.post("/api/predict")
 async def predict(input: PredictionInput):
     """
     Predict college preferences based on input parameters
-    
-    Args:
-        input (PredictionInput): Input parameters for prediction
-    
-    Returns:
-        Dict containing predictions and visualization data
     """
     try:
         result, plot = predict_preferences(
@@ -141,39 +125,71 @@ async def predict(input: PredictionInput):
                 content={"message": "No predictions available for given criteria"}
             )
         
-        return {
-            "predictions": result.to_dict(orient='records'),
-            "plot_data": plot.to_dict() if plot else None
-        }
+        return JSONResponse(
+            status_code=200,
+            content={
+                "predictions": result.to_dict(orient='records'),
+                "plot_data": plot.to_dict() if plot else None
+            }
+        )
     except Exception as e:
         logger.error(f"Error in predict endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 @app.post("/api/college-details")
 async def college_details(input: CollegeDetailInput):
     """
     Retrieve detailed information about a specific college
-    
-    Args:
-        input (CollegeDetailInput): College and branch information
-    
-    Returns:
-        Dict containing college details
     """
     try:
         details = get_college_details(input.institute, input.branch)
         if "error" in details:
-            raise HTTPException(status_code=404, detail=details["error"])
-        return details
+            return JSONResponse(
+                status_code=404,
+                content={"error": details["error"]}
+            )
+        return JSONResponse(status_code=200, content=details)
     except Exception as e:
         logger.error(f"Error in college_details endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
-# Health check endpoint
-@app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "data_loaded": JOSAA_DATA is not None,
+            "rows_count": len(JOSAA_DATA) if JOSAA_DATA is not None else 0
+        }
+    )
+
+@app.get("/api/test-branches")
+async def test_branches():
+    """Test endpoint for branch data"""
+    try:
+        branches = get_unique_branches()
+        return JSONResponse(
+            status_code=200,
+            content={
+                "total_branches": len(branches),
+                "sample_branches": branches[:5],
+                "csv_loaded": JOSAA_DATA is not None,
+                "csv_rows": len(JOSAA_DATA) if JOSAA_DATA is not None else 0
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 if __name__ == "__main__":
     uvicorn.run(
