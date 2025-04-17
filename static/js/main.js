@@ -4,84 +4,92 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function initializeApp() {
     console.log('Initializing application...');
-    await loadBranches();
-    setupFormHandling();
-    setupProbabilitySlider();
+    await checkAndLoadData();
+}
+
+async function checkAndLoadData() {
+    try {
+        // Check API health
+        const healthResponse = await fetch('/api/health');
+        const healthData = await healthResponse.json();
+        console.log('Health check:', healthData);
+
+        if (!healthData.data_loaded) {
+            showError('Warning: Data not properly loaded');
+            return;
+        }
+
+        // Load branches
+        await loadBranches();
+        
+        // Setup other components
+        setupFormHandling();
+        setupProbabilitySlider();
+        
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showError('Failed to initialize application');
+    }
 }
 
 async function loadBranches() {
     try {
-        console.log('Starting branch loading...');
         const branchSelect = document.getElementById('preferred_branch');
-        
         if (!branchSelect) {
-            console.error('Branch select element not found');
-            return;
+            throw new Error('Branch select element not found');
         }
 
-        // Disable select and show loading
         branchSelect.disabled = true;
         branchSelect.innerHTML = '<option value="">Loading branches...</option>';
 
-        // First check API health
-        const healthResponse = await fetch('/api/health');
-        console.log('Health check response:', await healthResponse.json());
-
-        // Fetch branches
         const response = await fetch('/api/branches');
-        console.log('Branch API Response status:', response.status);
-
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('Received branch data:', data);
+        console.log('Branch data:', data);
 
-        // Clear and populate select
         branchSelect.innerHTML = '<option value="">Select Branch</option>';
         
         if (data.branches && Array.isArray(data.branches)) {
             data.branches.forEach(branch => {
-                if (branch !== "All") {  // Skip "All" option if you don't want it
+                if (branch && branch !== "All") {
                     const option = document.createElement('option');
                     option.value = branch;
-                    option.textContent = branch.charAt(0).toUpperCase() + 
-                                       branch.slice(1).toLowerCase();
+                    option.textContent = branch
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                        .join(' ');
                     branchSelect.appendChild(option);
                 }
             });
-            console.log(`Successfully populated ${data.branches.length} branches`);
-        } else {
-            throw new Error('Invalid branch data format');
         }
 
-        // Re-enable select
         branchSelect.disabled = false;
 
     } catch (error) {
         console.error('Error loading branches:', error);
-        const branchSelect = document.getElementById('preferred_branch');
-        if (branchSelect) {
-            branchSelect.disabled = false;
-            branchSelect.innerHTML = `
-                <option value="">Error loading branches</option>
-                <option value="computer science and engineering">Computer Science and Engineering</option>
-                <option value="electrical engineering">Electrical Engineering</option>
-                <option value="mechanical engineering">Mechanical Engineering</option>
-                <option value="civil engineering">Civil Engineering</option>
-            `;
-        }
-        
-        // Try to get more diagnostic information
-        try {
-            const testResponse = await fetch('/api/test-branches');
-            const testData = await testResponse.json();
-            console.log('Branch test endpoint data:', testData);
-        } catch (testError) {
-            console.error('Error fetching test data:', testError);
-        }
+        showError('Failed to load branches');
     }
+}
+
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 1000;
+    `;
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+    setTimeout(() => errorDiv.remove(), 5000);
 }
 
 async function handleFormSubmit(e) {
