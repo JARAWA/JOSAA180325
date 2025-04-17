@@ -20,9 +20,6 @@ JOSAA_DATA = None
 def load_data() -> pd.DataFrame:
     """
     Load JoSAA counseling data from CSV
-    
-    Returns:
-        pd.DataFrame: Loaded and preprocessed dataframe
     """
     global JOSAA_DATA
     try:
@@ -39,6 +36,10 @@ def load_data() -> pd.DataFrame:
         # Read the CSV file
         df = pd.read_csv(csv_path)
         
+        if df.empty:
+            logger.error("CSV file is empty")
+            return pd.DataFrame()
+            
         # Data preprocessing
         df["Opening Rank"] = pd.to_numeric(df["Opening Rank"], errors="coerce").fillna(9999999)
         df["Closing Rank"] = pd.to_numeric(df["Closing Rank"], errors="coerce").fillna(9999999)
@@ -56,11 +57,9 @@ def load_data() -> pd.DataFrame:
     
     except Exception as e:
         logger.error(f"Error in load_data: {e}")
-        return pd.DataFrame(columns=[
-            'Institute', 'Academic Program Name', 'Category', 
-            'Opening Rank', 'Closing Rank', 'Round', 'College Type'
-        ])
-
+        JOSAA_DATA = pd.DataFrame()
+        return JOSAA_DATA
+        
 def get_unique_branches() -> list:
     """
     Retrieve unique academic branches with enhanced error checking
