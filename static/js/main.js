@@ -3,12 +3,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function initializeApp() {
-    await loadBranches(); // Load branches first
+    console.log('Initializing application...');
+    await loadBranches();
     setupFormHandling();
     setupProbabilitySlider();
 }
 
-// Branch Loading
 async function loadBranches() {
     try {
         console.log('Starting branch loading...');
@@ -23,8 +23,13 @@ async function loadBranches() {
         branchSelect.disabled = true;
         branchSelect.innerHTML = '<option value="">Loading branches...</option>';
 
+        // First check API health
+        const healthResponse = await fetch('/api/health');
+        console.log('Health check response:', await healthResponse.json());
+
+        // Fetch branches
         const response = await fetch('/api/branches');
-        console.log('API Response:', response);
+        console.log('Branch API Response status:', response.status);
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -38,14 +43,16 @@ async function loadBranches() {
         
         if (data.branches && Array.isArray(data.branches)) {
             data.branches.forEach(branch => {
-                const option = document.createElement('option');
-                option.value = branch;
-                option.textContent = branch.charAt(0).toUpperCase() + branch.slice(1);
-                branchSelect.appendChild(option);
+                if (branch !== "All") {  // Skip "All" option if you don't want it
+                    const option = document.createElement('option');
+                    option.value = branch;
+                    option.textContent = branch.charAt(0).toUpperCase() + 
+                                       branch.slice(1).toLowerCase();
+                    branchSelect.appendChild(option);
+                }
             });
-            console.log('Branches populated successfully');
+            console.log(`Successfully populated ${data.branches.length} branches`);
         } else {
-            console.error('Invalid branch data received:', data);
             throw new Error('Invalid branch data format');
         }
 
@@ -57,16 +64,23 @@ async function loadBranches() {
         const branchSelect = document.getElementById('preferred_branch');
         if (branchSelect) {
             branchSelect.disabled = false;
-            branchSelect.innerHTML = '<option value="">Error loading branches</option>';
+            branchSelect.innerHTML = `
+                <option value="">Error loading branches</option>
+                <option value="computer science and engineering">Computer Science and Engineering</option>
+                <option value="electrical engineering">Electrical Engineering</option>
+                <option value="mechanical engineering">Mechanical Engineering</option>
+                <option value="civil engineering">Civil Engineering</option>
+            `;
         }
-    }
-}
-
-// Form Handling
-function setupFormHandling() {
-    const predictionForm = document.getElementById('prediction-form');
-    if (predictionForm) {
-        predictionForm.addEventListener('submit', handleFormSubmit);
+        
+        // Try to get more diagnostic information
+        try {
+            const testResponse = await fetch('/api/test-branches');
+            const testData = await testResponse.json();
+            console.log('Branch test endpoint data:', testData);
+        } catch (testError) {
+            console.error('Error fetching test data:', testError);
+        }
     }
 }
 
